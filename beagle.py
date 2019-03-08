@@ -92,6 +92,9 @@ def icmp_scan(targets):
 				alive_hosts.append(target)
 	return alive_hosts
 
+def hunt_null(targets):
+	for i in targets:
+		print(i)
 
 t=get_targets(args.target)
 p=[53,88,139,445,464]
@@ -99,7 +102,6 @@ p=[53,88,139,445,464]
 
 logger.blue('Found {} targets'.format(len(t)))
 
-#The iteration will be done in the enumeratio functions. Even if the list has one ip, this discovery will still work fine. Might be worth grabbing the len of targets when passed into tcp_scan to check properly.
 if args.discovery_mode.lower() == 'port':
 	alive_hosts=tcp_scan(t,p)
 
@@ -109,16 +111,16 @@ elif args.discovery_mode.lower() == 'icmp':
 elif args.discovery_mode == 'skip':
 	alive_hosts=t
 
-# if args.enumerate == 'null':
-# 	hunt_null(t)
-# elif args.enumerate == 'shares':
-# 	hunt_shares(t)
-# elif args.enumerate == 'ms17-010':
-# 	hunt_ms17(t)
-# elif args.enumerate == 'all':
-# 	hunt_null(t)
-# 	hunt_shares(t)
-# 	hunt_ms17(t)
-# else:
-# 	print('the fuck')
+if args.enumerate.lower() == 'null':
+	hunt_null(t)
+elif args.enumerate.lower() == 'shares':
+	hunt_shares(t)
+elif args.enumerate.lower() == 'ms17-010':
+	hunt_ms17(t)
+elif args.enumerate.lower() == 'all':
+	hunt_null(t)
+	hunt_shares(t)
+	hunt_ms17(t)
+else:
+	print('the fuck')
 
