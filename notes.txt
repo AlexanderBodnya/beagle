@@ -1,0 +1,63 @@
+- my_name (string) – The local NetBIOS machine name that will identify where this connection is originating from. You can freely choose a name as long as it contains a maximum of 15 alphanumeric characters and does not contain spaces and any of \/:*?";|+
+- remote_name (string) – The NetBIOS machine name of the remote server. On windows, you can find out the machine name by right-clicking on the “My Computer” and selecting “Properties”. This parameter must be the same as what has been configured on the remote server, or else the connection will be rejected.
+- domain (string) – The network domain. On windows, it is known as the workgroup. Usually, it is safe to leave this parameter as an empty string.
+- use_ntlm_v2 (boolean) – Indicates whether pysmb should be NTLMv1 or NTLMv2 authentication algorithm for authentication. The choice of NTLMv1 and NTLMv2 is configured on the remote server, and there is no mechanism to auto-detect which algorithm has been configured. Hence, we can only “guess” or try both algorithms. On Sambda, Windows Vista and Windows 7, NTLMv2 is enabled by default. On Windows XP, we can use NTLMv1 before NTLMv2.
+- sign_options (int) – Determines whether SMB messages will be signed. Default is SIGN_WHEN_REQUIRED. If SIGN_WHEN_REQUIRED (value=2), SMB messages will only be signed when remote server requires signing. If SIGN_WHEN_SUPPORTED (value=1), SMB messages will be signed when remote server supports signing but not requires signing. If SIGN_NEVER (value=0), SMB messages will never be signed regardless of remote server’s configurations; access errors will occur if the remote server requires signing.
+- is_direct_tcp (boolean) – Controls whether the NetBIOS over TCP/IP (is_direct_tcp=False) or the newer Direct hosting of SMB over TCP/IP (is_direct_tcp=True) will be used for the communication. The default parameter is False which will use NetBIOS over TCP/IP for wider compatibility (TCP port: 139).
+
+
+
+Beagle Structure:
+
+beagle.py:
+Recieves arguments from commandline and writes all variables to utils.py
+
+utils.py:
+All variable are written to here for cross reference purposes
+
+controller.py:
+All the heavy lifting is done here. Functions from host_enum.py are called and stored in more variables within controller.py to be parsed for output.
+
+host_enum.py:
+Functions for the heavy lifting is done here. smb enumeration and so on.
+
+logger.py:
+Pretty print.
+
+
+
+OLD;
+if args.username:
+	username = args.username
+else:
+	username=""
+
+if args.password:
+	password = args.password
+else:
+	password=""
+
+client_machine_name = 'dc-win12'
+server_name = 'servername'
+server_ip = args.target
+
+if args.domain:
+	domain_name = args.domain
+else:
+	domain_name = "WORKGROUP"
+
+conn = SMBConnection(username, password,client_machine_name,server_name,domain_name,use_ntlm_v2=True,is_direct_tcp=True)
+conn.connect(server_ip, 445)
+
+shares = conn.listShares(timeout=30)  # obtain a list of shares
+for i in range(len(shares)):  # iterate through the list of shares
+	print(shares[i].name)
+
+if args.recursive:
+	for i in range(len(shares)):
+		files = conn.listPath(shares[i].name,'/',timeout=30)
+		print(client_machine_name + ':' + shares[i].name)
+		for i in range(len(files)):
+			print('\t'+files[i].filename)
+
+conn.close()
