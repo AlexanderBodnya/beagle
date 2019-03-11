@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import argparse, os.path
+from subprocess import PIPE, run
 from netaddr import IPNetwork
 from lib import logger
 from smb.SMBConnection import SMBConnection
@@ -7,8 +8,8 @@ from scapy.all import *
 
 parser = argparse.ArgumentParser(description="Release the bagels.")
 parser.add_argument("-t", "--target", required=True, metavar="", help="Takes single IP, CIDR or file.")
-parser.add_argument("-d", "--discovery-mode", metavar="", help="The method for checking if the host is up")
-parser.add_argument("-e", "--enumerate", metavar="", help="What the bagels are looking for.")
+parser.add_argument("-m", "--mode", metavar="", help="Host discovery options: ICMP, Port, Skip")
+parser.add_argument("-e", "--enumerate", metavar="", help="Enumerate options: Null, Shares, MS17-010, All.")
 args = parser.parse_args()
 
 def get_targets(targets):
@@ -43,6 +44,18 @@ def get_targets(targets):
 			target_list.append(targets)
 			return target_list
 
+def error_handle(cmd_out):
+	ERRORS=["NT_STATUS_CONNECTION_REFUSED","NT_STATUS_INVALID_NETWORK_RESPONSE","NT_STATUS_INVALID_PARAMETER","NT_STATUS_UNSUCCESSFUL","NT_STATUS_IO_TIMEOUT","NT_STATUS_ACCESS_DENIED","NT_STATUS_LOGON_FAILURE","NT_STATUS_REVISION_MISMATCH","COULD NOT CONNECT","NT_STATUS_HOST_UNREACHABLE","no servers could be reached"]
+	val=False
+	for error in ERRORS:
+		if error in cmd_out:
+			val=error #return the error if found
+			break
+		else:
+			val=False #otherwise, return False if no error is found
+	return val
+
+
 def tcp_scan(targets,ports):
 	src_port = RandShort()
 	FIN = 0x01
@@ -63,7 +76,7 @@ def tcp_scan(targets,ports):
 		for port in ports:
 			send_syn = sr1(IP(dst=target)/TCP(sport=src_port,dport=port,flags=SYN),verbose=0,timeout=2)
 			if send_syn == None:
-				pass
+				logger.red_indent('{}:{} CLOSED'.format(target,port))
 			elif(send_syn.haslayer(TCP)):
 				if(send_syn.getlayer(TCP).flags == SYNACK):
 					send_ack = sr(IP(dst=target)/TCP(sport=src_port,dport=port,flags=RST),verbose=0,timeout=2)
@@ -71,9 +84,9 @@ def tcp_scan(targets,ports):
 					if target not in alive_hosts:
 						alive_hosts.append(target)
 				elif (send_syn.getlayer(TCP).flags == RSTACK):
-					pass
+					logger.red_indent('{}:{} CLOSED'.format(target,port))
 				elif (send_syn.getlayer(TCP).flags == RST):
-					pass
+					logger.red_indent('{}:{} CLOSED'.format(target,port))
 	return alive_hosts
 
 
@@ -83,9 +96,9 @@ def icmp_scan(targets):
 		logger.blue('Pinging: {}'.format(target))
 		resp = sr1(IP(dst=str(target))/ICMP(),timeout=2,verbose=0)
 		if resp is None:
-			pass
+			logger.red_indent('{}: Down'.format(target))
 		elif(int(resp.getlayer(ICMP).type)==3 and int(resp.getlayer(ICMP).code) in [1,2,3,9,10,13]):
-			pass
+			logger.red_indent('{}: Down'.format(target))
 		else:
 			logger.green_indent('{}: Up'.format(target))
 			if target not in alive_hosts:
@@ -93,8 +106,25 @@ def icmp_scan(targets):
 	return alive_hosts
 
 def hunt_null(targets):
-	for i in targets:
-		print(i)
+	for target in targets:
+		logger.blue('Testing null sessions on {}'.format(target))
+		rpc_command_lsaquery='rpcclient -U "" -N {} -c "lsaquery"'.format(target)
+		result=run(rpc_command_lsaquery,stdout=PIPE,stderr=PIPE,universal_newlines=False,shell=True)
+
+		if len(result.stdout) > 0 and len(result.stderr) == 0:
+			command_output=result.stdout
+		elif len(result.stderr) > 0 and len(result.stdout) == 0:
+			command_output=result.stderr
+
+		decoded=command_output.decode('utf-8')
+		has_error=error_handle(decoded)
+		if has_error != False:
+			logger.red_indent('Failed to connect to {}'.format(target))
+		elif has_error == False:
+			logger.green_indent('Successfully connected to {}'.format(target))
+
+
+
 
 t=get_targets(args.target)
 p=[53,88,139,445,464]
@@ -102,25 +132,27 @@ p=[53,88,139,445,464]
 
 logger.blue('Found {} targets'.format(len(t)))
 
-if args.discovery_mode.lower() == 'port':
+if args.mode.lower() == 'port':
 	alive_hosts=tcp_scan(t,p)
 
-elif args.discovery_mode.lower() == 'icmp':
+elif args.mode.lower() == 'icmp':
 	alive_hosts=icmp_scan(t)
 
-elif args.discovery_mode == 'skip':
+elif args.mode == 'skip':
 	alive_hosts=t
 
-if args.enumerate.lower() == 'null':
+
+if args.enumerate == None or args.enumerate.lower() == 'all':
+	hunt_null(alive_hosts)
+	# hunt_shares(t)
+	# hunt_ms17(t)
+elif args.enumerate.lower() == 'null':
 	hunt_null(t)
-elif args.enumerate.lower() == 'shares':
-	hunt_shares(t)
-elif args.enumerate.lower() == 'ms17-010':
-	hunt_ms17(t)
-elif args.enumerate.lower() == 'all':
-	hunt_null(t)
-	hunt_shares(t)
-	hunt_ms17(t)
+# elif args.enumerate.lower() == 'shares':
+# 	hunt_shares(t)
+# elif args.enumerate.lower() == 'ms17-010':
+# 	hunt_ms17(t)
+
 else:
 	print('the fuck')
 

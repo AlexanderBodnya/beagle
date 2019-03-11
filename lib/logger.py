@@ -30,3 +30,5 @@ def green(string):
 def green_indent(string):
 	print('\t'+GREEN(good)+'\t'+string)
 
+def red_indent(string):
+	print('\t'+RED(bad)+'\t'+string)
