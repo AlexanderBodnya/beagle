@@ -4,11 +4,11 @@
 ### Usage
 
 #### Discovery
-Find alive hosts with icmp:
+##### Find alive hosts with icmp:
 ```python3 -t 192.168.0.0/24 -m icmp```
-Find alive hosts with ports:
+##### Find alive hosts with ports:
 ```python3 -t 192.168.0.0/24 -m ports```
-Skip finding alive hosts:
+##### Skip finding alive hosts:
 ```python3 -t 192.168.0.0/24 -m skip```
 
 #### Enumeration
