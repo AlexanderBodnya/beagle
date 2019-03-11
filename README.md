@@ -4,15 +4,22 @@
 ### Usage
 
 ####Discovery
-Find alive hosts with icmp:```python3 -t 192.168.0.0/24 -m icmp```
-Find alive hosts with ports:```python3 -t 192.168.0.0/24 -m ports```
-Skip finding alive hosts:```python3 -t 192.168.0.0/24 -m skip```
+Find alive hosts with icmp:
+```python3 -t 192.168.0.0/24 -m icmp```
+Find alive hosts with ports:
+```python3 -t 192.168.0.0/24 -m ports```
+Skip finding alive hosts:
+```python3 -t 192.168.0.0/24 -m skip```
 
 #### Enumeration
-Find null sessions:```python3 beagle.py -t 192.168.0.0/24 -e null```
-Find shares:```python3 beagle.py -t 192.168.0.0/24 -e shares```
-Find MS17-010:```python3 beagle.py -t 192.168.0.0/24 -e ms17-010```
-Find all:```python3 beagle.py -t 192.168.0.0/24 -e all```
+Find null sessions:
+```python3 beagle.py -t 192.168.0.0/24 -e null```
+Find shares:
+```python3 beagle.py -t 192.168.0.0/24 -e shares```
+Find MS17-010:
+```python3 beagle.py -t 192.168.0.0/24 -e ms17-010```
+Find all:
+```python3 beagle.py -t 192.168.0.0/24 -e all```
 
 #### Specifying credentials
 <p>If credentials are specified, Beagle will skip null sessions and enumerate shares and MS17-010 With those credentials.</p>
