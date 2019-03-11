@@ -13,7 +13,7 @@ parser.add_argument("-e", "--enumerate", metavar="", help="Enumerate options: Nu
 parser.add_argument("-p", "--ports", metavar="", help="Ports to scan. Comma seperated and dash seperated both work")
 parser.add_argument("-U", "--username", metavar="", help="Username to authenticate with")
 parser.add_argument("-P", "--password", metavar="", help="Password to authenticate with")
-parser.add_argument("-q", "--quiet",action="store_true", help="Verbosity")
+parser.add_argument("-q", "--quiet",action="store_true", help="Disable a bunch of output")
 
 args = parser.parse_args()
 
