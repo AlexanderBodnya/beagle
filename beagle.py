@@ -10,6 +10,7 @@ parser = argparse.ArgumentParser(description="Release the bagels.")
 parser.add_argument("-t", "--target", required=True, metavar="", help="Takes single IP, CIDR or file.")
 parser.add_argument("-m", "--mode", metavar="", help="Host discovery options: ICMP, Port, Skip")
 parser.add_argument("-e", "--enumerate", metavar="", help="Enumerate options: Null, Shares, MS17-010, All.")
+parser.add_argument("-p", "--ports", metavar="", help="Ports to scan")
 args = parser.parse_args()
 
 def get_targets(targets):
@@ -123,12 +124,52 @@ def hunt_null(targets):
 		elif has_error == False:
 			logger.green_indent('Successfully connected to {}'.format(target))
 
+def hunt_shares(targets):
+	username='brandon.mcgrath'
+	password='Password4'
+	client_machine_name='dc-win12'
+	server_name='servername'
+	domain_name='lab.local'
+	for target in targets:
+		logger.blue('Looking up shares on {}'.format(target))
+
+		server_ip=target
+		conn = SMBConnection(username, password,client_machine_name,server_name,domain_name,use_ntlm_v2=True,is_direct_tcp=True)
+		try:
+			conn.connect(server_ip,445)
+			logger.green_indent('Successfully connected to {}'.format(server_ip))
+			try:
+				shares=conn.listShares(timeout=15)
+				for share in range(len(shares)):
+					logger.green_indent(shares[share].name)
+			except Exception as e:
+				logger.red_indent('Got error: {}'.format(e))
+		except:
+			logger.red_indent('Failed to connect to {}'.format(server_ip))
+
 
 
 
 t=get_targets(args.target)
-p=[53,88,139,445,464]
 
+if args.ports:
+	p=[]
+	ports=args.ports
+	if "-" in ports:
+		try:
+			start=int(ports.split('-')[0])
+			end=int(ports.split('-')[1])
+			for port in range(start,end+1):
+				p.append(port)
+		except:
+				print('failed to split on "-"')
+				quit()
+	elif "," in args.ports:
+		ports=[int(n) for n in args.ports.split(",")]
+		p=ports
+
+else:
+	p=[53,88,139,445,464]
 
 logger.blue('Found {} targets'.format(len(t)))
 
@@ -144,12 +185,12 @@ elif args.mode == 'skip':
 
 if args.enumerate == None or args.enumerate.lower() == 'all':
 	hunt_null(alive_hosts)
-	# hunt_shares(t)
+	hunt_shares(t)
 	# hunt_ms17(t)
 elif args.enumerate.lower() == 'null':
 	hunt_null(t)
-# elif args.enumerate.lower() == 'shares':
-# 	hunt_shares(t)
+elif args.enumerate.lower() == 'shares':
+	hunt_shares(t)
 # elif args.enumerate.lower() == 'ms17-010':
 # 	hunt_ms17(t)
 
