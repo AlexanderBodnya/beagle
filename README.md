@@ -3,7 +3,7 @@
 
 ### Usage
 
-####Discovery
+#### Discovery
 Find alive hosts with icmp:
 ```python3 -t 192.168.0.0/24 -m icmp```
 Find alive hosts with ports:
@@ -12,13 +12,13 @@ Skip finding alive hosts:
 ```python3 -t 192.168.0.0/24 -m skip```
 
 #### Enumeration
-Find null sessions:
+##### Find null sessions:
 ```python3 beagle.py -t 192.168.0.0/24 -e null```
-Find shares:
+##### Find shares:
 ```python3 beagle.py -t 192.168.0.0/24 -e shares```
-Find MS17-010:
+##### Find MS17-010:
 ```python3 beagle.py -t 192.168.0.0/24 -e ms17-010```
-Find all:
+##### Find all:
 ```python3 beagle.py -t 192.168.0.0/24 -e all```
 
 #### Specifying credentials
