@@ -10,7 +10,11 @@ parser = argparse.ArgumentParser(description="Release the bagels.")
 parser.add_argument("-t", "--target", required=True, metavar="", help="Takes single IP, CIDR or file.")
 parser.add_argument("-m", "--mode", metavar="", help="Host discovery options: ICMP, Port, Skip")
 parser.add_argument("-e", "--enumerate", metavar="", help="Enumerate options: Null, Shares, MS17-010, All.")
-parser.add_argument("-p", "--ports", metavar="", help="Ports to scan")
+parser.add_argument("-p", "--ports", metavar="", help="Ports to scan. Comma seperated and dash seperated both work")
+parser.add_argument("-U", "--username", metavar="", help="Username to authenticate with")
+parser.add_argument("-P", "--password", metavar="", help="Password to authenticate with")
+parser.add_argument("-q", "--quiet",action="store_true", help="Verbosity")
+
 args = parser.parse_args()
 
 def get_targets(targets):
@@ -120,9 +124,9 @@ def hunt_null(targets):
 		decoded=command_output.decode('utf-8')
 		has_error=error_handle(decoded)
 		if has_error != False:
-			logger.red_indent('Failed to connect to {}'.format(target))
+			logger.red_indent('Failed to authenticate with null sessions to {}'.format(target))
 		elif has_error == False:
-			logger.green_indent('Successfully connected to {}'.format(target))
+			logger.green_indent('Successfully authenticated with null sessions to {}'.format(target))
 
 def hunt_shares(targets):
 	username='brandon.mcgrath'
@@ -147,11 +151,6 @@ def hunt_shares(targets):
 		except:
 			logger.red_indent('Failed to connect to {}'.format(server_ip))
 
-
-
-
-t=get_targets(args.target)
-
 if args.ports:
 	p=[]
 	ports=args.ports
@@ -168,20 +167,35 @@ if args.ports:
 		ports=[int(n) for n in args.ports.split(",")]
 		p=ports
 
+	elif len(args.ports) > 0 and "-" not in args.ports and "," not in args.ports:
+		try:
+			p.append(int(args.ports))
+		except ValueError:
+			print('Please specify an port number')
+			quit()
 else:
 	p=[53,88,139,445,464]
 
+if args.quiet:
+	logger.QUIET=True
+
+t=get_targets(args.target)
+
 logger.blue('Found {} targets'.format(len(t)))
 
-if args.mode.lower() == 'port':
-	alive_hosts=tcp_scan(t,p)
+if args.mode:
+	if args.mode.lower() == 'port':
+		alive_hosts=tcp_scan(t,p)
 
-elif args.mode.lower() == 'icmp':
+	elif args.mode.lower() == 'icmp':
+		alive_hosts=icmp_scan(t)
+
+	elif args.mode == 'skip':
+		alive_hosts=t
+	else:
+		alive_hosts=t
+else:
 	alive_hosts=icmp_scan(t)
-
-elif args.mode == 'skip':
-	alive_hosts=t
-
 
 if args.enumerate == None or args.enumerate.lower() == 'all':
 	hunt_null(alive_hosts)
