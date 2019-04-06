@@ -1,6 +1,9 @@
 ## Beagle
 <p>Beagle is a Python3 tool to hunt SMB and RPC information. Beagle can use null sessions (or creds) to identify open rpc interactions and open smb shares.</p>
 
+### Requirement
+Install the requirements.txt and make sure rpcclient is installed on your machine.
+
 ### Usage
 
 #### Discovery
