@@ -8,11 +8,11 @@ Install the requirements.txt and make sure rpcclient is installed on your machin
 
 #### Discovery
 ##### Find alive hosts with icmp:
-```python3 -t 192.168.0.0/24 -m icmp```
+```python3 beagle.py -t 192.168.0.0/24 -m icmp```
 ##### Find alive hosts with ports:
-```python3 -t 192.168.0.0/24 -m ports```
+```python3 beagle.py -t 192.168.0.0/24 -m ports```
 ##### Skip finding alive hosts:
-```python3 -t 192.168.0.0/24 -m skip```
+```python3 beagle.py -t 192.168.0.0/24 -m skip```
 
 #### Quiet
 ```python3 beagle.py -t 192.168.0.0/24 -q```
