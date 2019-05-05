@@ -135,14 +135,15 @@ def get_name(target,timeout=5):
 	logger.blue('Getting NetBIOS Name for {}'.format(logger.BLUE(target)))
 	logger.verbose('Timeout for NetBIOS resolution: '+str(timeout))
 	bios = NetBIOS()
-	netbios_name = bios.queryIPForName(target, timeout=timeout)
+	tmpnetbios_name = bios.queryIPForName(target, timeout=timeout)
+	netbios_name=str(tmpnetbios_name[0])
 	bios.close()
 	if netbios_name == None:
 		logger.red_indent('Failed to get NetBIOS Name')
 		return None
 	else:
-		logger.green_indent('Got NetBIOS Name: {}'.format(logger.GREEN(*netbios_name)))
-		return str(*netbios_name)
+		logger.green_indent('Got NetBIOS Name: {}'.format(logger.GREEN(netbios_name)))
+		return str(netbios_name)
 
 def get_shares(target,domain_name,remote_name,username,password):
 	my_name='WIN-2003'
