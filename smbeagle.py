@@ -135,8 +135,11 @@ def get_name(target,timeout=5):
 	logger.blue('Getting NetBIOS Name for {}'.format(logger.BLUE(target)))
 	logger.verbose('Timeout for NetBIOS resolution: '+str(timeout))
 	bios = NetBIOS()
-	tmpnetbios_name = bios.queryIPForName(target, timeout=timeout)
-	netbios_name=str(tmpnetbios_name[0])
+	try:
+		tmpnetbios_name = bios.queryIPForName(target, timeout=timeout)
+		netbios_name=str(tmpnetbios_name[0])
+	except:
+		netbios_name=None
 	bios.close()
 	if netbios_name == None:
 		logger.red_indent('Failed to get NetBIOS Name')
@@ -344,12 +347,21 @@ def main():
 	#for every host, do some enum; this could probably be done with multiprocessing
 	for i in alive_hosts:
 		ip=i
-		name=get_name(ip)
-		shares=get_shares(ip,domain,name,username,password)
-		null_sessions=get_nullsessions(ip)
-
-		host=Host(ip,name,shares,null_sessions)
-		enumerated_hosts.append(host)
+		if args.enumerate == None:
+			name=get_name(ip)
+			shares=get_shares(ip,domain,name,username,password)
+			null_sessions=get_nullsessions(ip)
+			host=Host(ip,name,shares,null_sessions)
+			enumerated_hosts.append(host)
+		elif args.enumerate.lower() == 'null':
+                        null_sessions=get_nullsessions(ip)
+                        host=Host(ip,None,None,null_sessions)
+                        enumerated_hosts.append(host)
+		elif args.enumerate.lower() == 'shares':
+                        name=get_name(ip)
+                        shares=get_shares(ip,domain,name,username,password)
+                        host=Host(ip,name,shares,None)
+                        enumerated_hosts.append(host)
 
 	if args.output:
 		outfile_name=args.output
@@ -364,4 +376,5 @@ if __name__ == '__main__':
 	except KeyboardInterrupt:
 		print('KeyboardInterrupt detected, exiting...')
 		quit()
+
 
