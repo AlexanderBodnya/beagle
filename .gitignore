@@ -1,2 +1,4 @@
 __pycache__
 *.pyc
+beagle_venv/**/*
+.vscode/settings.json

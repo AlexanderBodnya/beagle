@@ -3,6 +3,7 @@
 
 ### Requirement
 Install the requirements.txt and make sure rpcclient is installed on your machine.
+For Windows machine you might need to install npcap, because scapy wouldn't sniff/send packets without it. You can found it here: https://nmap.org/download.html
 
 ### Usage
 
