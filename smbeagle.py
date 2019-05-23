@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from scapy.all import *
+from scapy.layers.inet import IP, UDP, TCP, ICMP
 from netaddr import IPNetwork
 from nmb.NetBIOS import NetBIOS
 from smb.SMBConnection import SMBConnection
@@ -87,7 +88,7 @@ def error_handle(cmd_out):
         if error in cmd_out:
             val = error  # return the error if found
             logger.verbose(
-                'Found error from rpcclient: '.format(logger.YELLOW(val)))
+                'Found error from rpcclient: {}'.format(logger.YELLOW(val)))
             break
         else:
             val = False  # otherwise, return False if no error is found
