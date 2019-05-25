@@ -7,6 +7,7 @@ from nmb.NetBIOS import NetBIOS
 from smb.SMBConnection import SMBConnection
 from lib import logger, banner
 from subprocess import PIPE, run
+import logging
 import argparse
 import os
 
@@ -30,7 +31,16 @@ verbosity_level_group.add_argument(
     "-q", "--quiet", action="store_true", help="Disable a bunch of output")
 verbosity_level_group.add_argument(
     "-v", "--verbose", action="store_true", help="Increase the spam")
+parser.add_argument('-D', '--debug', action="store_true", dest="debug_mode", help=argparse.SUPPRESS)
 args = parser.parse_args()
+
+if args.debug_mode:
+    logging_level = logging.DEBUG
+else:
+    logging_level = logging.ERROR
+
+logging.basicConfig(level=logging_level, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
 
 
 class Host:
@@ -369,9 +379,13 @@ def main():
 
     logger.verbose('Domain: '+logger.YELLOW(domain))
 
-    target = args.target  # to be replaced with argparse
-    hosts = get_targets(target)  # all possible hosts
+    logging.debug('Trying to get targets..')
 
+    hosts = get_targets(args.target)  # all possible hosts
+
+    logging.debug('Got targets..')
+
+    logging.debug('Proceeding to hosts discovery..')
     if args.mode != None:
         if args.mode.upper() == 'ICMP':
             logger.verbose('Discovery mode set to ICMP')
@@ -390,10 +404,13 @@ def main():
     else:
         logger.verbose('No discovery mode set, defaulting to ICMP')
         alive_hosts = icmp_scan(hosts)  # all hosts that respond to icmp
+    
+    logging.debug('All alive hosts are discovered..')
 
     # create an empty list that will store all the Host objects
     enumerated_hosts = []
 
+    logging.debug('Processing hosts enumeration...')
     # for every host, do some enum; this could probably be done with multiprocessing
     for i in alive_hosts:
         ip = i
@@ -412,6 +429,8 @@ def main():
             shares = get_shares(ip, domain, name, username, password)
             host = Host(ip, name, shares, None)
             enumerated_hosts.append(host)
+    
+    logging.debug('Enumeration finished..')
 
     if args.output:
         outfile_name = args.output
@@ -422,6 +441,7 @@ def main():
 
 
 if __name__ == '__main__':
+
     try:
         banner.banner()
         main()
