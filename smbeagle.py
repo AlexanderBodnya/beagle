@@ -7,6 +7,8 @@ from nmb.NetBIOS import NetBIOS
 from smb.SMBConnection import SMBConnection
 from lib import logger, banner
 from subprocess import PIPE, run
+from multiprocessing.dummy import Pool
+from functools import partial
 import logging
 import argparse
 import os
@@ -22,8 +24,9 @@ parser.add_argument("-e", "--enumerate", metavar="",
                     help="Enumerate options: Null, Shares, MS17-010, All.")
 parser.add_argument("-p", "--ports", metavar="",
                     help="Ports to scan. Comma seperated and dash seperated both work")
-parser.add_argument("-c", "--credentials", metavar="",
-                    help="Colon seperated credentials")
+parser.add_argument("-U", "--username", default="",
+                    help="Username")
+parser.add_argument("-P", "--password", default="", help="Password")
 parser.add_argument("-d", "--domain", metavar="",
                     help="Domain name of the hosts")
 parser.add_argument("-o", "--output", metavar="", help="Output to file")
@@ -31,16 +34,18 @@ verbosity_level_group.add_argument(
     "-q", "--quiet", action="store_true", help="Disable a bunch of output")
 verbosity_level_group.add_argument(
     "-v", "--verbose", action="store_true", help="Increase the spam")
+parser.add_argument('-T', '--threads', action="store", dest="threads", default=1, type=int, help="Thread count, defaults to 1")
 parser.add_argument('-D', '--debug', action="store_true", dest="debug_mode", help=argparse.SUPPRESS)
 args = parser.parse_args()
 
 if args.debug_mode:
     logging_level = logging.DEBUG
+    logging.basicConfig(level=logging_level, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 else:
-    logging_level = logging.ERROR
+    pass
 
-logging.basicConfig(level=logging_level, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
+thread_pool = Pool(args.threads)
 
 
 class Host:
@@ -87,6 +92,7 @@ def get_targets(targets):
             target_list.append(targets)
             logger.verbose(
                 'Amount of targets from input: {}'.format(len(target_list)))
+            
             return target_list
 
 
@@ -107,36 +113,34 @@ def error_handle(cmd_out):
     return val
 
 
-def icmp_scan(targets):
+def icmp_scan(target):
     # takes in a list of targets and tries to identify a list of hosts responding to icmp and returns them in a list
-    logger.verbose('Amount of targets for ICMP Scan: {}'.format(len(targets)))
-    alive_hosts = []
     timeout = 2
     logger.verbose('ICMP Timeout set to: '+str(timeout))
-    for target in targets:
-        logger.blue('Pinging: {}'.format(logger.BLUE(target)))
-        resp = sr1(IP(dst=str(target))/ICMP(), timeout=timeout, verbose=0)
-        try:
-            icmp_type = str(resp.getlayer(ICMP).code)
-            resp_parse = icmp_response_parse(icmp_type)
-            logger.verbose('Got ICMP Type: [{}] {}'.format(
-                logger.YELLOW(icmp_type), logger.YELLOW(resp_parse)))
-        except:
-            logger.verbose('Could not get ICMP Type code for: ' +
-                           logger.YELLOW(target))
+    logger.blue('Pinging: {}'.format(logger.BLUE(target)))
+    resp = sr1(IP(dst=str(target))/ICMP(), timeout=timeout, verbose=0)
+    try:
+        icmp_type = str(resp.getlayer(ICMP).code)
+        resp_parse = icmp_response_parse(icmp_type)
+        logger.verbose('Got ICMP Type: [{}] {}'.format(
+            logger.YELLOW(icmp_type), logger.YELLOW(resp_parse)))
+    except:
+        logger.verbose('Could not get ICMP Type code for: ' +
+                        logger.YELLOW(target))
 
-        if resp is None:
-            logger.verbose('Got no response from: '+logger.YELLOW(target))
-            logger.red_indent('{}: Down'.format(logger.RED(target)))
+    if resp is None:
+        logger.verbose('Got no response from: '+logger.YELLOW(target))
+        logger.red_indent('{}: Down'.format(logger.RED(target)))
+        result = None
 
-        elif(int(resp.getlayer(ICMP).type) == 3 and int(resp.getlayer(ICMP).code) in [1, 2, 3, 9, 10, 13]):
-            logger.red_indent('{}: Down'.format(logger.RED(target)))
+    elif(int(resp.getlayer(ICMP).type) == 3 and int(resp.getlayer(ICMP).code) in [1, 2, 3, 9, 10, 13]):
+        logger.red_indent('{}: Down'.format(logger.RED(target)))
+        result = None
+    else:
+        logger.green_indent('{}: Up'.format(logger.GREEN(target)))
+        result = target
 
-        else:
-            logger.green_indent('{}: Up'.format(logger.GREEN(target)))
-            if target not in alive_hosts:
-                alive_hosts.append(target)
-    return alive_hosts
+    return result
 
 
 def icmp_response_parse(resp):
@@ -192,8 +196,11 @@ def get_shares(target, domain_name, remote_name, username, password):
         logger.verbose('Connection status: [{} | {} | {}]'.format(logger.YELLOW(
             server_ip), logger.YELLOW(remote_name), logger.YELLOW(domain_name)))
     else:
-        logger.verbose('Connection status: [{} | {} | {}]'.format(logger.YELLOW(
-            server_ip), logger.YELLOW('Could not resolve name'), logger.YELLOW(domain_name)))
+        try:
+            logger.verbose('Connection status: [{} | {} | {}]'.format(logger.YELLOW(
+                server_ip), logger.YELLOW('Could not resolve name'), logger.YELLOW(domain_name)))
+        except:
+            pass
     open_shares = []
     if remote_name == None:
         logger.red_indent('Could not get remote hosts name, skipping...')
@@ -273,7 +280,7 @@ def clean_output(filename):
     open(filename, 'w').close()
 
 
-def port_scan(targets, ports):
+def port_scan(target, ports):
     src_port = RandShort()
     FIN = 0x01
     SYN = 0x02
@@ -286,42 +293,54 @@ def port_scan(targets, ports):
     ECE = 0x40
     CWR = 0x80
 
-    alive_hosts = []
-
-    for target in targets:
-        logger.blue('Checking TCP ports: {}'.format(logger.BLUE(target)))
-        for port in ports:
-            send_syn = sr1(IP(dst=target)/TCP(sport=src_port,
-                                              dport=port, flags=SYN), verbose=0, timeout=2)
-            if send_syn == None:
-                logger.verbose(
-                    'Recieved no TCP response from: '+logger.YELLOW(target))
+    logger.blue('Checking TCP ports: {}'.format(logger.BLUE(target)))
+    for port in ports:
+        send_syn = sr1(IP(dst=target)/TCP(sport=src_port,
+                                        dport=port, flags=SYN), verbose=0, timeout=2)
+        if send_syn == None:
+            logger.verbose(
+                'Recieved no TCP response from: '+logger.YELLOW(target))
+            logger.red_indent('{}:{} [{}]'.format(logger.RED(
+                target), logger.RED(str(port)), logger.RED('CLOSED')))
+        elif(send_syn.haslayer(TCP)):
+            if(send_syn.getlayer(TCP).flags == SYNACK):
+                send_ack = sr(IP(dst=target)/TCP(sport=src_port,
+                                                dport=port, flags=RST), verbose=0, timeout=2)
+                logger.verbose('Recieved SYNACK from {}, responding with RST'.format(
+                    logger.YELLOW(target)))
+                logger.green_indent('{}:{} [{}]'.format(logger.GREEN(
+                    target), logger.GREEN(str(port)), logger.GREEN('OPEN')))
+                logger.verbose('Found alive host: ' +
+                            logger.YELLOW(target))
+                return target
+            elif (send_syn.getlayer(TCP).flags == RSTACK):
+                logger.verbose('Recieved RSTACK from: ' +
+                            logger.YELLOW(target))
                 logger.red_indent('{}:{} [{}]'.format(logger.RED(
                     target), logger.RED(str(port)), logger.RED('CLOSED')))
-            elif(send_syn.haslayer(TCP)):
-                if(send_syn.getlayer(TCP).flags == SYNACK):
-                    send_ack = sr(IP(dst=target)/TCP(sport=src_port,
-                                                     dport=port, flags=RST), verbose=0, timeout=2)
-                    logger.verbose('Recieved SYNACK from {}, responding with RST'.format(
-                        logger.YELLOW(target)))
-                    logger.green_indent('{}:{} [{}]'.format(logger.GREEN(
-                        target), logger.GREEN(str(port)), logger.GREEN('OPEN')))
-                    if target not in alive_hosts:
-                        logger.verbose('Found alive host: ' +
-                                       logger.YELLOW(target))
-                        alive_hosts.append(target)
-                elif (send_syn.getlayer(TCP).flags == RSTACK):
-                    logger.verbose('Recieved RSTACK from: ' +
-                                   logger.YELLOW(target))
-                    logger.red_indent('{}:{} [{}]'.format(logger.RED(
-                        target), logger.RED(str(port)), logger.RED('CLOSED')))
-                elif (send_syn.getlayer(TCP).flags == RST):
-                    logger.verbose('Recieved RST from: '+logger.YELLOW(target))
-                    logger.red_indent('{}:{} [{}]'.format(logger.RED(
-                        target), logger.RED(str(port)), logger.RED('CLOSED')))
-    logger.verbose('Total amount of alive hosts found: ' +
-                   logger.YELLOW(str(len(alive_hosts))))
-    return alive_hosts
+            elif (send_syn.getlayer(TCP).flags == RST):
+                logger.verbose('Recieved RST from: '+logger.YELLOW(target))
+                logger.red_indent('{}:{} [{}]'.format(logger.RED(
+                    target), logger.RED(str(port)), logger.RED('CLOSED')))
+    return None
+
+
+def hosts_enumeration(ip):
+        if ip == None:
+            pass
+        else:    
+            if args.enumerate == None:
+                name = get_name(ip)
+                shares = get_shares(ip, args.domain, name, args.username, args.password)
+                null_sessions = get_nullsessions(ip)
+                host = Host(ip, name, shares, null_sessions)
+            elif args.enumerate.lower() == 'null':
+                null_sessions = get_nullsessions(ip)
+                host = Host(ip, None, None, null_sessions)
+            elif args.enumerate.lower() == 'shares':
+                name = get_name(ip)
+                shares = get_shares(ip, args.domain, name, args.username, args.password)
+            return host
 
 
 def main():
@@ -359,18 +378,8 @@ def main():
     if args.ports:
         logger.verbose('Ports configuration: '+str(p))
 
-    if args.credentials:
-        try:
-            username = args.credentials.split(':')[0]
-            password = args.credentials.split(':')[1]
-        except:
-            logger.RED('failed to split credentials')
-            quit()
-    else:
-        username = ''
-        password = ''
 
-    logger.verbose('Username: '+logger.YELLOW(username))
+    logger.verbose('Username: '+logger.YELLOW(args.username))
 
     if args.domain:
         domain = args.domain
@@ -389,10 +398,13 @@ def main():
     if args.mode != None:
         if args.mode.upper() == 'ICMP':
             logger.verbose('Discovery mode set to ICMP')
-            alive_hosts = icmp_scan(hosts)  # all hosts that respond to icmp
+            alive_hosts = thread_pool.map(icmp_scan, hosts)  # all hosts that respond to icmp
+            logging.debug('Hosts list: {}'.format(alive_hosts))
         elif args.mode.upper() == 'PORTS':
             logger.verbose('Discovery mode set to ports')
-            alive_hosts = port_scan(hosts, p)
+            port_scan_fixed = partial(port_scan, ports = p)
+            alive_hosts = thread_pool.map(port_scan_fixed, hosts)
+            logging.debug('Hosts list: {}'.format(alive_hosts))
         elif args.mode.upper() == 'SKIP':
             logger.verbose('Discovery mode set to skip, scanning all {} hosts'.format(
                 logger.YELLOW(str(len(hosts)))))
@@ -411,25 +423,8 @@ def main():
     enumerated_hosts = []
 
     logging.debug('Processing hosts enumeration...')
-    # for every host, do some enum; this could probably be done with multiprocessing
-    for i in alive_hosts:
-        ip = i
-        if args.enumerate == None:
-            name = get_name(ip)
-            shares = get_shares(ip, domain, name, username, password)
-            null_sessions = get_nullsessions(ip)
-            host = Host(ip, name, shares, null_sessions)
-            enumerated_hosts.append(host)
-        elif args.enumerate.lower() == 'null':
-            null_sessions = get_nullsessions(ip)
-            host = Host(ip, None, None, null_sessions)
-            enumerated_hosts.append(host)
-        elif args.enumerate.lower() == 'shares':
-            name = get_name(ip)
-            shares = get_shares(ip, domain, name, username, password)
-            host = Host(ip, name, shares, None)
-            enumerated_hosts.append(host)
-    
+    # for every host, do some enum
+    enumerated_hosts = thread_pool.map(hosts_enumeration, alive_hosts)    
     logging.debug('Enumeration finished..')
 
     if args.output:
